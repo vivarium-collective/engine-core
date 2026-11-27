@@ -1,17 +1,17 @@
-# viva-engine-core
+# engine-core
 
-The shared base every config-driven simulator wrapper in the ecosystem reuses, so a
-simulator's "wrap a real engine as a process-bigraph Process" shape is implemented
-**once** instead of re-rolled per repo.
+A tiny shared base so the ecosystem's simulator wrappers implement the "wrap a real
+engine as a process-bigraph Process" shape **once** instead of re-rolling it per repo.
+Framework-general: it depends only on process-bigraph, not on viva or any engine.
 
 ## `EngineProcess`
 
-Every engine wrapper repeats the same shape: declare ports from config, build the
-engine once, then each step gather the input values and run the engine to produce the
-outputs. `EngineProcess` captures that; a wrapper implements two hooks:
+Every engine wrapper repeats the same shape: declare ports from config, build the engine
+once, then each step gather the input values and run the engine. `EngineProcess` captures
+that; a wrapper implements just **two hooks**:
 
 ```python
-from viva_engine_core import EngineProcess
+from engine_core import EngineProcess
 
 class PhreeqcProcess(EngineProcess):
     config_schema = {**EngineProcess.config_schema,
@@ -25,21 +25,26 @@ class PhreeqcProcess(EngineProcess):
         return speciate(self._engine, self.config["recipe"], values)
 ```
 
-The base supplies `inputs()` / `outputs()` (from `config["inputs"]` / `config["outputs"]`),
-`update()` (gather input values from state → `run`), and optional reproducibility capture.
-A wrapper whose engine builds lazily returns `None` from `build_engine` and builds on the
-first `run`. Genuinely specialized processes (fixed ports, domain pre/post physics) keep
-their own shape and reuse the engine's primitives instead — don't force them onto the base.
+The base supplies `inputs()`/`outputs()` (from `config["inputs"]`/`config["outputs"]`) and
+`update()` (gather declared input values from state → `run`). A wrapper whose engine builds
+lazily returns `None` from `build_engine` and builds on first `run`. Genuinely specialized
+processes (fixed ports, domain pre/post physics) keep their own shape and reuse the engine's
+primitives — the base is for the common config-driven case, not a straitjacket.
 
-## Run-environment capture
+## Reproducibility (opt-in, decoupled)
 
-`capture_run_env(packages)` records python + platform + each named package's version and
-git sha, framework-free, so a run can say exactly which simulator build produced it. Set
-`config["capture_env"] = True` and `config["env_packages"] = ["viva-phreeqc", ...]`;
-read it back via `process.run_env()`.
+`capture_run_env(packages)` records python + platform + each named package's version and git
+sha, framework-free, so a run can say which simulator build produced it. It is a **separate
+helper**, deliberately NOT baked into `EngineProcess` — a wrapper that wants it calls it
+itself, keeping the base a clean process pattern:
 
-## Why
+```python
+from engine_core import capture_run_env
+env = capture_run_env(["viva-phreeqc"])   # {"python":..., "platform":..., "packages": {...}}
+```
 
-An ecosystem audit found simulator wrappers each hand-roll this shape; a shared base makes
-new wraps uniform, gives every run reproducibility capture for free, and lets consumers
-rely on one contract. See the ecosystem reuse program.
+## Scope
+
+`EngineProcess` is framework-general and is a candidate to graduate into process-bigraph itself
+(as a `process_bigraph.engine` submodule) once its hook API has settled across several adopters.
+`capture_run_env` is a provenance concern and stays out of the core framework.

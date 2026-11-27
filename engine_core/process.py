@@ -1,9 +1,8 @@
 """EngineProcess: the shared base for config-driven simulator wrappers.
 
-Every engine wrapper in the ecosystem repeats the same shape — declare ports from
-config, build the engine once, then each step gather the input values and run the
-engine to produce the outputs. This base captures that shape (and optional run-env
-capture) so a wrapper only implements two hooks:
+Every engine wrapper repeats the same shape — declare ports from config, build the
+engine once, then each step gather the input values and run the engine to produce the
+outputs. `EngineProcess` captures exactly that; a wrapper implements two hooks:
 
     class PhreeqcProcess(EngineProcess):
         config_schema = {**EngineProcess.config_schema, "recipe": {"_type": "tree", "_default": {}}}
@@ -12,16 +11,19 @@ capture) so a wrapper only implements two hooks:
         def run(self, values, interval):      # each step: {port: value} -> {port: value}
             return speciate(self._engine, self.config["recipe"], values)
 
-The base provides inputs()/outputs() from config, update() (gather -> run), and
-capture_env. A wrapper whose engine needs lazy construction can override build_engine
-to return None and build on first run(). Genuinely specialized processes (fixed ports,
-domain pre/post) keep their own shape and reuse the engine primitives instead.
+The base provides inputs()/outputs() from config and update() (gather -> run). It is
+pure process-bigraph — no dependency on provenance, the framework, or any engine. A
+wrapper whose engine needs lazy construction returns None from build_engine and builds
+on the first run(). Genuinely specialized processes (fixed ports, domain pre/post
+physics) keep their own shape and reuse the engine's primitives instead.
+
+Reproducibility is a separate, opt-in concern: a wrapper that wants it calls
+`capture_run_env(...)` (see engine_core.run_env) itself — it is deliberately NOT baked
+into this base, so the base stays a clean, framework-level process pattern.
 """
 from __future__ import annotations
 
 from process_bigraph import Process
-
-from .run_env import capture_run_env
 
 
 class EngineProcess(Process):
@@ -30,19 +32,11 @@ class EngineProcess(Process):
         # wrapper does not reimplement inputs()/outputs().
         "inputs": {"_type": "tree", "_default": {}},
         "outputs": {"_type": "tree", "_default": {}},
-        # Reproducibility: names of the engine packages to stamp into run_env().
-        "env_packages": {"_type": "tree", "_default": []},
-        "capture_env": {"_type": "boolean", "_default": False},
     }
 
     def __init__(self, config=None, core=None):
         super().__init__(config=config, core=core)
         self._engine = self.build_engine(self.config)
-        self._run_env = (
-            capture_run_env(self.config.get("env_packages") or ())
-            if self.config.get("capture_env")
-            else None
-        )
 
     # --- ports from config -------------------------------------------------
     def inputs(self):
@@ -56,10 +50,6 @@ class EngineProcess(Process):
         ports = self.config.get("inputs") or {}
         values = {name: state[name] for name in ports if name in state}
         return self.run(values, interval)
-
-    def run_env(self) -> dict | None:
-        """The captured run environment (None unless config['capture_env'])."""
-        return self._run_env
 
     # --- hooks a wrapper implements ---------------------------------------
     def build_engine(self, config):

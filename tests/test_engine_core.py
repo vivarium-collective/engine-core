@@ -1,6 +1,6 @@
 """EngineProcess base: ports from config, gather->run lifecycle, env capture."""
 from process_bigraph import allocate_core
-from viva_engine_core import EngineProcess, capture_run_env
+from engine_core import EngineProcess, capture_run_env
 
 _CORE = allocate_core()
 
@@ -37,11 +37,6 @@ def test_engine_built_once():
     assert p._engine == {"gain": 2.0}
 
 
-def test_env_capture_opt_in():
-    assert _mk(inputs={}, outputs={}).run_env() is None
-    p = _mk(inputs={}, outputs={}, capture_env=True, env_packages=["process-bigraph"])
-    env = p.run_env()
-    assert env and "python" in env and "process-bigraph" in env["packages"]
 
 
 def test_capture_run_env_missing_package_is_blank_not_error():
