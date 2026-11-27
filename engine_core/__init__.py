@@ -5,5 +5,18 @@ opt-in reproducibility helper (not coupled to the base).
 """
 from engine_core.process import EngineProcess
 from engine_core.run_env import capture_run_env
+from engine_core.uniform_time_course import (
+    SteadyStateStep,
+    UniformTimeCourseStep,
+    pack_utc,
+    validate_n_points,
+)
 
-__all__ = ["EngineProcess", "capture_run_env"]
+__all__ = [
+    "EngineProcess",
+    "capture_run_env",
+    "UniformTimeCourseStep",
+    "SteadyStateStep",
+    "pack_utc",
+    "validate_n_points",
+]
